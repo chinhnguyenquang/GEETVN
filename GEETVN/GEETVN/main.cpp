@@ -1,10 +1,11 @@
 #include "main.h"
 
 #pragma region init_class 
-Pcf8575_custom::Pcf8575_input _Input_pcf(PCF_ADDR_INPUT,{12,13,14,15});
+Pcf8575_custom::Pcf8575_input _Input_pcf(PCF_ADDR_INPUT,{9,10,11,12,13,14,15});
 Pcf8575_custom::Pcf8575_output _Output_pcf(PCF_ADDR_OUT,true);
 Audio _Audio(26,25,33);
 int Maybom=0;
+int Maycambienmui=0;
 #pragma endregion init_class
 
 #pragma region declare_task
@@ -189,6 +190,7 @@ void Task_Event(void* pvParameter) {
     uint32_t openedAt = 0;
     uint32_t timeMaybom=0;
     static bool status_maybom=false;
+    static bool status_mui=false;
     for (;;) {
         
         switch (_currentState)
@@ -206,6 +208,7 @@ void Task_Event(void* pvParameter) {
                 DBG("hello world");
                 status_maybom = false;
                 _Output_pcf.Set(static_cast<int>(ActuatorType::Maybom), 0);
+                break;
             }
 
             if(_Input_pcf.readPin(static_cast<int>(SensorType::HAND_SENSOR_2))==1)
@@ -215,22 +218,39 @@ void Task_Event(void* pvParameter) {
                 _currentState = DoorState::OPENNED_OUT;
             }
 
-            if(Maybom >= 2)
+            if(Maybom >= 5)
             {
                 Maybom =0;
                 _Output_pcf.Set(static_cast<int>(ActuatorType::Maybom), 1);
+                _Output_pcf.Set(static_cast<int>(ActuatorType::RELAY_2_CHANNEL),1);
                 status_maybom = true;
                 timeMaybom=millis();
             }
 
             if(status_maybom)
             {
-                if(millis() - timeMaybom >= 5000)
+                if(millis() - timeMaybom >= 10000)
                 {
                     _Output_pcf.Set(static_cast<int>(ActuatorType::Maybom), 0);
+                    _Output_pcf.Set(static_cast<int>(ActuatorType::RELAY_2_CHANNEL),0);
                     status_maybom = false;
                 }
             }
+            if(!status_mui)
+            {
+                if(_Input_pcf.readPin(static_cast<int>(SensorType::CBM))==1)
+                {            
+                    status_mui=true;
+                    Maybom+=5;
+                }
+
+            }
+            if(Maycambienmui >= 10)
+            {
+                Maycambienmui=0;
+                status_mui =false;
+            }
+            
             break;
         
         case DoorState::CLOSED_C:
@@ -239,6 +259,14 @@ void Task_Event(void* pvParameter) {
                 Open_is(1);
                 _Output_pcf.Set(static_cast<int>(ActuatorType::LIGHT), 0);
                 _currentState = DoorState::OPENNED_OUT;
+                break;
+            }
+            if(!_Input_pcf.readPin(static_cast<int>(SensorType::SWITCH_1_STATE))){                    
+                    Open_is(2);
+
+            }
+            else{
+                Open_is(0);
             }
             break;
 
@@ -251,14 +279,29 @@ void Task_Event(void* pvParameter) {
                 _Output_pcf.Set(static_cast<int>(ActuatorType::RELAY_1_CHANNEL),0);
                 _Audio.stop();
                 _currentState = DoorState::CLOSED_K;
+                break;
             }
-            break;
+            if(_Input_pcf.readPin(static_cast<int>(SensorType::CBQ1)) || (_Input_pcf.readPin(static_cast<int>(SensorType::CBQ2))))
+            {   
+                Open_is(1);
+                _currentState = DoorState::UNKNOW;
+                break;
+            }
+
+
         case DoorState::CLOSING_C:
             if(_Input_pcf.readPin(static_cast<int>(SensorType::SWITCH_1_STATE)))
             {
                 Open_is(0);
                 // Them hit cua
                 _currentState = DoorState::CLOSED_C;
+                break;
+            }
+            if(_Input_pcf.readPin(static_cast<int>(SensorType::CBQ1)) || (_Input_pcf.readPin(static_cast<int>(SensorType::CBQ2))))
+            {            
+                Open_is(1);
+                _currentState = DoorState::UNKNOW;
+                break;
             }
             break;
         case DoorState::OPENNED_IN:
@@ -287,6 +330,7 @@ void Task_Event(void* pvParameter) {
             {
                Open_is(2);
                 ++Maybom;
+                ++Maycambienmui;
                status_dongcua =false;
                _currentState = DoorState::CLOSING_C; 
             }
@@ -310,7 +354,36 @@ void Task_Event(void* pvParameter) {
             }
             
             break;
+        case DoorState::UNKNOW:
+            if(_Input_pcf.readPin(static_cast<int>(SensorType::SWITCH_2_STATE)))
+            {
+                Open_is(0);
+                if(!status_dongcua)
+                {
+                    openedAt = millis();
+                    status_dongcua = true;
+                }
+                if(millis() - openedAt >= 7500)
+                {
+                    Open_is(2);
+                    status_dongcua =false;
+                    _currentState=DoorState::CLOSING_K;
+                }
 
+                if(_Input_pcf.readPin(static_cast<int>(SensorType::HAND_SENSOR_2)))
+                {
+                    Open_is(2);
+                    ++Maybom;
+                    status_dongcua =false;
+                    _currentState = DoorState::CLOSING_C; 
+                    _Output_pcf.Set(static_cast<int>(ActuatorType::LIGHT), 1);
+                    _Output_pcf.Set(static_cast<int>(ActuatorType::RELAY_2_CHANNEL),1);
+                    _Output_pcf.Set(static_cast<int>(ActuatorType::RELAY_1_CHANNEL),1);
+                    _Audio.play();
+                }
+            }
+
+            break;
         default:
             break;
         }

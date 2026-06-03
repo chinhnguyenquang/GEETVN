@@ -24,7 +24,12 @@ enum class SensorType : uint8_t {
     //Cam bien khong cham vao 
     HAND_SENSOR_1 =12,
     //Cam bien khong cham ra
-    HAND_SENSOR_2 =13
+    HAND_SENSOR_2 =13,
+    //Cam bien quang
+    CBQ1=10,
+    CBQ2=11,
+    ////Cambien mui
+    CBM=9
 
 };
 
@@ -46,6 +51,7 @@ enum class ActuatorType : int {
     LIGHT =5,
 
     Maybom =4,
+    
 };
 
 
@@ -61,5 +67,7 @@ enum class DoorState : uint8_t {
     OPENING_OUT =9,
     STOPPED = 5,       // dừng giữa chừng
     BLOCKED = 6,       // gặp vật cản / chống kẹt
-    ERROR = 7          // lỗi hệ thống
+    ERROR = 7,          // lỗi hệ thống
+    UNKNOW=12
+
 };
